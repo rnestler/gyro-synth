@@ -19,7 +19,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.renuo_ops.gyroscope"
     },
     "web": {
       "output": "static",
@@ -37,6 +42,22 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": [
+            "android.permission.MODIFY_AUDIO_SETTINGS"
+          ]
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow $(PRODUCT_NAME) to use device motion so you can play the synthesizer by tilting the phone."
         }
       ]
     ],
