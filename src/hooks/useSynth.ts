@@ -10,22 +10,34 @@ const MAX_CUTOFF = 6000;
 export const MIN_BPM = 40;
 export const MAX_BPM = 240;
 
+export type BeatMode = 'drone' | 'metronome' | 'shake';
+
 /**
  * Owns the audio engine and drives it from the latest tilt:
  *   - a per-frame loop maps tilt → pitch (x) and filter cutoff (y)
- *   - a metronome retriggers the note at `bpm` when rhythm is on; otherwise a
- *     continuous drone holds the note.
+ *   - the beat mode decides *when* the note is struck:
+ *       drone     → held continuously
+ *       metronome → plucked at `bpm`
+ *       shake     → plucked by `trigger()` (called on each shake)
  */
 export function useSynth(tiltRef: RefObject<Tilt>) {
   const synthRef = useRef<Synth | null>(null);
   if (!synthRef.current) synthRef.current = new Synth();
 
   const [playing, setPlaying] = useState(false);
-  const [rhythmOn, setRhythmOn] = useState(false);
+  const [mode, setMode] = useState<BeatMode>('drone');
   const [bpm, setBpm] = useState(120);
   const [note, setNote] = useState('—');
+  const [beat, setBeat] = useState(0); // increments on every struck note (UI flash)
 
   const lastNoteRef = useRef('—');
+  // Stable mirrors so trigger() stays referentially stable yet reads fresh state.
+  const playingRef = useRef(playing);
+  const modeRef = useRef(mode);
+  useEffect(() => {
+    playingRef.current = playing;
+    modeRef.current = mode;
+  }, [playing, mode]);
 
   // Map tilt → synth parameters every animation frame while playing.
   useEffect(() => {
@@ -50,27 +62,45 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
     return () => cancelAnimationFrame(frame);
   }, [playing, tiltRef]);
 
-  // Rhythm clock vs. continuous drone.
+  // Beat source per mode.
   useEffect(() => {
     if (!playing) return;
     const synth = synthRef.current!;
 
-    if (!rhythmOn) {
+    if (mode === 'drone') {
       synth.drone(true);
       return () => synth.drone(false);
     }
 
+    // metronome + shake both start from silence between hits
     synth.drone(false);
-    synth.pluck(); // pluck immediately so toggling feels responsive
-    const id = setInterval(() => synth.pluck(), 60000 / bpm);
-    return () => clearInterval(id);
-  }, [playing, rhythmOn, bpm]);
+
+    if (mode === 'metronome') {
+      synth.pluck();
+      setBeat((b) => b + 1);
+      const id = setInterval(() => {
+        synth.pluck();
+        setBeat((b) => b + 1);
+      }, 60000 / bpm);
+      return () => clearInterval(id);
+    }
+
+    // 'shake' — plucks arrive via trigger(); nothing scheduled here.
+    return undefined;
+  }, [playing, mode, bpm]);
 
   // Tear the engine down if the screen unmounts mid-play.
   useEffect(() => {
     return () => {
       synthRef.current?.stop();
     };
+  }, []);
+
+  /** Strike one note — only honored in shake mode while playing. */
+  const trigger = useCallback(() => {
+    if (!playingRef.current || modeRef.current !== 'shake') return;
+    synthRef.current!.pluck();
+    setBeat((b) => b + 1);
   }, []);
 
   const toggle = useCallback(async () => {
@@ -86,5 +116,5 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
     }
   }, []);
 
-  return { playing, toggle, rhythmOn, setRhythmOn, bpm, setBpm, note };
+  return { playing, toggle, mode, setMode, bpm, setBpm, note, trigger, beat };
 }
