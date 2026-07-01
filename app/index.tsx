@@ -48,12 +48,16 @@ export default function SynthScreen() {
 
   // Dot position in pixels, driven by an Animated value so it can glide smoothly
   // between the sparse sensor samples (Android 12+ caps motion updates at ~5 Hz).
+  // `pos` is the dot's OFFSET from the pad center, in pixels. The dot is anchored
+  // at 50%/50% (same as the crosshair), so an offset of 0 sits exactly on the
+  // crosshair — independent of the measured pad size or border.
   const [padSize, setPadSize] = useState(0);
   const pos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   useEffect(() => {
     if (!padSize) return;
+    const half = padSize / 2;
     Animated.timing(pos, {
-      toValue: { x: ((tilt.x + 1) / 2) * padSize, y: ((tilt.y + 1) / 2) * padSize },
+      toValue: { x: tilt.x * half, y: tilt.y * half },
       duration: 180, // ~one sensor interval, so each sample eases into the next
       easing: Easing.linear,
       useNativeDriver: true,
@@ -81,14 +85,7 @@ export default function SynthScreen() {
             with the parameter it controls. */}
         <View
           style={styles.pad}
-          onLayout={(e) => {
-            const w = e.nativeEvent.layout.width;
-            setPadSize(w);
-            pos.setValue({
-              x: ((tiltRef.current.x + 1) / 2) * w,
-              y: ((tiltRef.current.y + 1) / 2) * w,
-            });
-          }}>
+          onLayout={(e) => setPadSize(e.nativeEvent.layout.width)}>
           <View style={styles.padCrosshairV} />
           <View style={styles.padCrosshairH} />
 
@@ -217,12 +214,12 @@ const styles = StyleSheet.create({
   padCrosshairH: { position: 'absolute', top: '50%', left: 0, right: 0, height: 1, backgroundColor: '#2a333d' },
   dot: {
     position: 'absolute',
-    left: 0,
-    top: 0,
+    left: '50%',
+    top: '50%',
     width: 28,
     height: 28,
     borderRadius: 14,
-    marginLeft: -14, // center the dot on its translated (x, y) position
+    marginLeft: -14, // center the 28px dot on the 50%/50% anchor (= crosshair)
     marginTop: -14,
     backgroundColor: '#3a434d',
   },

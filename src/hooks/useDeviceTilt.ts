@@ -67,6 +67,10 @@ export function useDeviceTilt(
 
     let cancelled = false;
     let subscription: { remove: () => void } | undefined;
+    // Orientation captured from the first reading; every tilt is measured
+    // relative to it, so however the phone is held when playback starts becomes
+    // the neutral center (dot in the middle, mid-scale note).
+    let baseline: { beta: number; gamma: number } | null = null;
 
     (async () => {
       const ok = await DeviceMotion.isAvailableAsync();
@@ -83,7 +87,11 @@ export function useDeviceTilt(
       subscription = DeviceMotion.addListener((data: DeviceMotionMeasurement) => {
         const r = data.rotation;
         if (r) {
-          const next: Tilt = { x: clamp(r.gamma / MAX_TILT), y: clamp(r.beta / MAX_TILT) };
+          if (!baseline) baseline = { beta: r.beta, gamma: r.gamma };
+          const next: Tilt = {
+            x: clamp((r.gamma - baseline.gamma) / MAX_TILT),
+            y: clamp((r.beta - baseline.beta) / MAX_TILT),
+          };
           const prev = tiltRef.current;
           tiltRef.current = next; // always fresh for the audio loop
           // Re-render the dot only on a visible change — sensor noise while the
