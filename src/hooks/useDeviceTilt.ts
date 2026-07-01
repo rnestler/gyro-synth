@@ -19,6 +19,8 @@ const GRAVITY = 9.81;
 // Minimum gap between two shakes so one physical shake = one note.
 const REFRACTORY_MS = 150;
 const DEFAULT_THRESHOLD = 14;
+// ~0.6° of tilt — below this, skip the re-render (dot move is imperceptible).
+const TILT_EPSILON = 0.01;
 
 function clamp(v: number): number {
   return Math.max(-1, Math.min(1, v));
@@ -82,8 +84,13 @@ export function useDeviceTilt(
         const r = data.rotation;
         if (r) {
           const next: Tilt = { x: clamp(r.gamma / MAX_TILT), y: clamp(r.beta / MAX_TILT) };
-          tiltRef.current = next;
-          setTilt(next);
+          const prev = tiltRef.current;
+          tiltRef.current = next; // always fresh for the audio loop
+          // Re-render the dot only on a visible change — sensor noise while the
+          // phone is still would otherwise re-render the screen every event.
+          if (Math.abs(next.x - prev.x) > TILT_EPSILON || Math.abs(next.y - prev.y) > TILT_EPSILON) {
+            setTilt(next);
+          }
         }
 
         // Shake = linear-acceleration spike. Prefer gravity-free `acceleration`;

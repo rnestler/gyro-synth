@@ -31,6 +31,8 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
   const [beat, setBeat] = useState(0); // increments on every struck note (UI flash)
 
   const lastNoteRef = useRef('—');
+  const lastFreqRef = useRef(0);
+  const lastCutoffRef = useRef(0);
   // Stable mirrors so trigger() stays referentially stable yet reads fresh state.
   const playingRef = useRef(playing);
   const modeRef = useRef(mode);
@@ -47,14 +49,25 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
 
     const loop = () => {
       const t = tiltRef.current ?? { x: 0, y: 0 };
-      const n = tiltToNote(t.x);
-      synth.setFrequency(n.frequency);
-      synth.setCutoff(MIN_CUTOFF + ((t.y + 1) / 2) * (MAX_CUTOFF - MIN_CUTOFF));
 
-      if (n.name !== lastNoteRef.current) {
+      // Pitch is quantized to scale notes, so the frequency only changes when we
+      // cross into a new note — push to the audio bridge (and re-render) only then.
+      const n = tiltToNote(t.x);
+      if (n.frequency !== lastFreqRef.current) {
+        lastFreqRef.current = n.frequency;
+        synth.setFrequency(n.frequency);
         lastNoteRef.current = n.name;
-        setNote(n.name); // re-render only when the note actually changes
+        setNote(n.name);
       }
+
+      // Cutoff is continuous; only update when it moved audibly (~25 Hz) to avoid
+      // scheduling a param ramp on every single frame.
+      const cutoff = MIN_CUTOFF + ((t.y + 1) / 2) * (MAX_CUTOFF - MIN_CUTOFF);
+      if (Math.abs(cutoff - lastCutoffRef.current) > 25) {
+        lastCutoffRef.current = cutoff;
+        synth.setCutoff(cutoff);
+      }
+
       frame = requestAnimationFrame(loop);
     };
 
@@ -109,6 +122,8 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
       await synth.stop();
       setNote('—');
       lastNoteRef.current = '—';
+      lastFreqRef.current = 0; // force re-push of pitch/cutoff on next start
+      lastCutoffRef.current = 0;
       setPlaying(false);
     } else {
       await synth.start();
