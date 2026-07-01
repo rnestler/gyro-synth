@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, type DimensionValue, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type Tilt, useDeviceTilt } from '@/src/hooks/useDeviceTilt';
@@ -46,9 +46,19 @@ export default function SynthScreen() {
   const stepSensitivity = (delta: number) =>
     setSensitivity((s) => Math.max(MIN_SENSITIVITY, Math.min(MAX_SENSITIVITY, s + delta)));
 
-  // Tilt pad indicator position (tilt -1..1 → 0..100%).
-  const dotLeft: DimensionValue = `${((tilt.x + 1) / 2) * 100}%`;
-  const dotTop: DimensionValue = `${((tilt.y + 1) / 2) * 100}%`;
+  // Dot position in pixels, driven by an Animated value so it can glide smoothly
+  // between the sparse sensor samples (Android 12+ caps motion updates at ~5 Hz).
+  const [padSize, setPadSize] = useState(0);
+  const pos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  useEffect(() => {
+    if (!padSize) return;
+    Animated.timing(pos, {
+      toValue: { x: ((tilt.x + 1) / 2) * padSize, y: ((tilt.y + 1) / 2) * padSize },
+      duration: 180, // ~one sensor interval, so each sample eases into the next
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }).start();
+  }, [tilt, padSize, pos]);
 
   const flash = useBeatFlash(beat);
   const sensorBlocked = available === false || permission === 'denied';
@@ -59,7 +69,7 @@ export default function SynthScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Gyro Synth</Text>
-          <Text style={styles.subtitle}>Tilt = pitch · roll = note · pitch = tone</Text>
+          <Text style={styles.subtitle}>Tilt the phone to play</Text>
         </View>
 
         <Animated.View style={[styles.noteBox, { transform: [{ scale: flash }] }]}>
@@ -67,16 +77,39 @@ export default function SynthScreen() {
           <Text style={styles.note}>{playing ? note : '—'}</Text>
         </Animated.View>
 
-        {/* Tilt pad: dot tracks the phone's orientation. */}
-        <View style={styles.pad}>
+        {/* Tilt pad: dot tracks the phone's orientation. Each axis is labelled
+            with the parameter it controls. */}
+        <View
+          style={styles.pad}
+          onLayout={(e) => {
+            const w = e.nativeEvent.layout.width;
+            setPadSize(w);
+            pos.setValue({
+              x: ((tiltRef.current.x + 1) / 2) * w,
+              y: ((tiltRef.current.y + 1) / 2) * w,
+            });
+          }}>
           <View style={styles.padCrosshairV} />
           <View style={styles.padCrosshairH} />
+
+          <View style={styles.axisTop}>
+            <Text style={styles.axisText}>bright · TONE</Text>
+          </View>
+          <View style={styles.axisBottom}>
+            <Text style={styles.axisText}>dark · TONE</Text>
+          </View>
+          <View style={styles.axisLeft}>
+            <Text style={styles.axisText}>low · PITCH</Text>
+          </View>
+          <View style={styles.axisRight}>
+            <Text style={styles.axisText}>high · PITCH</Text>
+          </View>
+
           <Animated.View
             style={[
               styles.dot,
-              { left: dotLeft, top: dotTop },
               playing && styles.dotActive,
-              { transform: [{ scale: flash }] },
+              { transform: [{ translateX: pos.x }, { translateY: pos.y }, { scale: flash }] },
             ]}
           />
         </View>
@@ -184,14 +217,22 @@ const styles = StyleSheet.create({
   padCrosshairH: { position: 'absolute', top: '50%', left: 0, right: 0, height: 1, backgroundColor: '#2a333d' },
   dot: {
     position: 'absolute',
+    left: 0,
+    top: 0,
     width: 28,
     height: 28,
     borderRadius: 14,
-    marginLeft: -14,
+    marginLeft: -14, // center the dot on its translated (x, y) position
     marginTop: -14,
     backgroundColor: '#3a434d',
   },
   dotActive: { backgroundColor: ACCENT },
+
+  axisTop: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center' },
+  axisBottom: { position: 'absolute', bottom: 6, left: 0, right: 0, alignItems: 'center' },
+  axisLeft: { position: 'absolute', left: 8, top: 0, bottom: 0, justifyContent: 'center' },
+  axisRight: { position: 'absolute', right: 8, top: 0, bottom: 0, justifyContent: 'center' },
+  axisText: { color: '#6b7682', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
 
   warning: { color: '#e8a13b', textAlign: 'center', fontSize: 13 },
 

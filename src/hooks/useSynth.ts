@@ -61,8 +61,9 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
       }
 
       // Cutoff is continuous; only update when it moved audibly (~25 Hz) to avoid
-      // scheduling a param ramp on every single frame.
-      const cutoff = MIN_CUTOFF + ((t.y + 1) / 2) * (MAX_CUTOFF - MIN_CUTOFF);
+      // scheduling a param ramp on every single frame. Top of the pad = bright.
+      const vy = (t.y + 1) / 2; // 0 at top, 1 at bottom
+      const cutoff = MIN_CUTOFF + (1 - vy) * (MAX_CUTOFF - MIN_CUTOFF);
       if (Math.abs(cutoff - lastCutoffRef.current) > 25) {
         lastCutoffRef.current = cutoff;
         synth.setCutoff(cutoff);
