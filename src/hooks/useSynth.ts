@@ -110,12 +110,18 @@ export function useSynth(tiltRef: RefObject<Tilt>) {
     };
   }, []);
 
-  /** Strike one note — only honored in shake mode while playing. */
+  /** Strike one polyphonic note — only honored in shake mode while playing. */
   const trigger = useCallback(() => {
     if (!playingRef.current || modeRef.current !== 'shake') return;
-    synthRef.current!.pluck();
+    // Capture the pitch/cutoff at the instant of the shake so each fading voice
+    // keeps its own pitch (letting notes stack into chords/arpeggios).
+    const t = tiltRef.current ?? { x: 0, y: 0 };
+    const freq = tiltToNote(t.x).frequency;
+    const vy = (t.y + 1) / 2; // 0 at top, 1 at bottom
+    const cutoff = MIN_CUTOFF + (1 - vy) * (MAX_CUTOFF - MIN_CUTOFF);
+    synthRef.current!.strike(freq, cutoff);
     setBeat((b) => b + 1);
-  }, []);
+  }, [tiltRef]);
 
   const toggle = useCallback(async () => {
     const synth = synthRef.current!;

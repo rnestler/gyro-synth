@@ -6,8 +6,20 @@ import {
   type OscillatorNode,
 } from 'react-native-audio-api';
 
+// One-shot polyphonic voice: its own oscillator/filter/gain, torn down when it
+// finishes ringing.
+type Voice = { osc: OscillatorNode; filter: BiquadFilterNode; gain: GainNode };
+
+const ATTACK = 0.01;
+const RELEASE = 0.6; // struck-note fade length — longer = more audible overlap
+const MAX_VOICES = 12; // safety cap so rapid shaking can't spawn unbounded voices
+
 /**
- * A single-voice subtractive synth: oscillator -> low-pass filter -> VCA (gain).
+ * A subtractive synth with two paths:
+ *   - a persistent mono voice (oscillator -> low-pass -> VCA) for Drone/Metronome,
+ *   - `strike()` one-shot voices for Shake mode, which ring and fade independently
+ *     so notes overlap (polyphony).
+ * Both mix into a shared master gain -> destination.
  *
  * Lives outside React render so the audio graph is built once and only its
  * parameters are nudged while the user tilts the phone. All scheduling is done
@@ -18,6 +30,8 @@ export class Synth {
   private osc: OscillatorNode | null = null;
   private filter: BiquadFilterNode | null = null;
   private vca: GainNode | null = null;
+  private master: GainNode | null = null;
+  private voices = new Set<Voice>();
   private started = false;
   private peakGain = 0.25;
 
@@ -49,13 +63,19 @@ export class Synth {
     const vca = ctx.createGain();
     vca.gain.value = 0; // silent until drone()/pluck()
 
-    osc.connect(filter).connect(vca).connect(ctx.destination);
+    // Shared mixing point for the persistent voice and all struck voices.
+    const master = ctx.createGain();
+    master.gain.value = 0.6; // headroom for overlapping voices
+    master.connect(ctx.destination);
+
+    osc.connect(filter).connect(vca).connect(master);
     osc.start();
 
     this.ctx = ctx;
     this.osc = osc;
     this.filter = filter;
     this.vca = vca;
+    this.master = master;
     this.started = true;
   }
 
@@ -95,6 +115,59 @@ export class Synth {
     g.exponentialRampToValueAtTime(0.0001, t + 0.28); // decay (can't ramp to 0)
   }
 
+  /**
+   * Shake mode: play an independent voice at the given pitch/cutoff. Each call
+   * spawns a fresh oscillator that fades out on its own, so notes overlap.
+   */
+  strike(frequency: number, cutoff: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = frequency;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = cutoff;
+    filter.Q.value = 1;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(this.peakGain, t + ATTACK);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + RELEASE);
+
+    osc.connect(filter).connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + RELEASE + 0.05);
+
+    const voice: Voice = { osc, filter, gain };
+    this.voices.add(voice);
+    osc.onEnded = () => {
+      this.voices.delete(voice);
+      try {
+        osc.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      } catch {
+        // already disconnected
+      }
+    };
+
+    // Retire the oldest voice if we exceed the cap (Set keeps insertion order).
+    if (this.voices.size > MAX_VOICES) {
+      const oldest = this.voices.values().next().value;
+      if (oldest) {
+        try {
+          oldest.osc.stop();
+        } catch {
+          // already stopped
+        }
+      }
+    }
+  }
+
   async stop(): Promise<void> {
     if (!this.started || !this.ctx) return;
 
@@ -110,10 +183,25 @@ export class Synth {
       // already stopped
     }
 
+    // Silence and release any ringing struck voices.
+    this.voices.forEach((v) => {
+      try {
+        v.osc.stop();
+        v.osc.disconnect();
+        v.filter.disconnect();
+        v.gain.disconnect();
+      } catch {
+        // already gone
+      }
+    });
+    this.voices.clear();
+    this.master?.disconnect();
+
     this.ctx = null;
     this.osc = null;
     this.filter = null;
     this.vca = null;
+    this.master = null;
     this.started = false;
 
     // Let the release ring out, then tear down the context and session.
