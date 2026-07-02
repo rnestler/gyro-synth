@@ -71,11 +71,6 @@ export default function SynthScreen() {
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: 'Gyro Synth' }} />
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Gyro Synth</Text>
-          <Text style={styles.subtitle}>Tilt the phone to play</Text>
-        </View>
-
         <Animated.View style={[styles.noteBox, { transform: [{ scale: flash }] }]}>
           <Text style={styles.noteLabel}>NOTE</Text>
           <Text style={styles.note}>{playing ? note : '—'}</Text>
@@ -190,14 +185,11 @@ function useBeatFlash(beat: number) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
-  container: { flex: 1, padding: 24, gap: 18, justifyContent: 'center' },
-  header: { alignItems: 'center', gap: 6 },
-  title: { color: '#fff', fontSize: 30, fontWeight: '700' },
-  subtitle: { color: '#8a96a3', fontSize: 13 },
+  container: { flex: 1, padding: 20, gap: 14 },
 
-  noteBox: { alignItems: 'center', gap: 2 },
-  noteLabel: { color: '#6b7682', fontSize: 12, letterSpacing: 2 },
-  note: { color: ACCENT, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  noteBox: { alignItems: 'center' },
+  noteLabel: { color: '#6b7682', fontSize: 11, letterSpacing: 2 },
+  note: { color: ACCENT, fontSize: 48, fontWeight: '800', fontVariant: ['tabular-nums'] },
 
   pad: {
     aspectRatio: 1,
@@ -233,7 +225,7 @@ const styles = StyleSheet.create({
 
   warning: { color: '#e8a13b', textAlign: 'center', fontSize: 13 },
 
-  panel: { backgroundColor: PANEL, borderRadius: 16, padding: 16, gap: 12 },
+  panel: { backgroundColor: PANEL, borderRadius: 16, padding: 14, gap: 10 },
   segment: { flexDirection: 'row', backgroundColor: '#11161b', borderRadius: 12, padding: 4, gap: 4 },
   segBtn: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
   segBtnActive: { backgroundColor: ACCENT },
@@ -248,7 +240,9 @@ const styles = StyleSheet.create({
   value: { color: '#fff', fontSize: 16, minWidth: 80, textAlign: 'center', fontVariant: ['tabular-nums'] },
   hint: { color: '#8a96a3', fontSize: 13, textAlign: 'center' },
 
-  playBtn: { backgroundColor: ACCENT, borderRadius: 16, paddingVertical: 18, alignItems: 'center' },
+  // marginTop:auto pins Start to the bottom, so the flexible gap above it soaks
+  // up the mode-dependent panel height instead of shifting the pad/note.
+  playBtn: { marginTop: 'auto', backgroundColor: ACCENT, borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
   playBtnActive: { backgroundColor: '#e0556b' },
   playBtnText: { color: '#0c1013', fontSize: 18, fontWeight: '800' },
 });
