@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "gyroscope",
-    "slug": "gyroscope",
+    "name": "Gyro Synth",
+    "slug": "gyro-synth",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gyroscope",
+    "scheme": "gyrosynth",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
