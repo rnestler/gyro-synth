@@ -24,7 +24,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.renuo_ops.gyroscope"
+      "package": "ch.rnstlr.gyrosynth"
     },
     "web": {
       "output": "static",
