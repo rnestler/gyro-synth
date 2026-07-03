@@ -21,7 +21,6 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "ch.rnstlr.gyrosynth"
@@ -64,6 +63,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "198d5204-e652-4e76-83e1-cbacf0d7ba62"
+      }
+    },
+    "owner": "rnestler"
   }
 }
